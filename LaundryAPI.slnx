@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/LaundryAPI/LaundryAPI.csproj" />
+  <Project Path="tests/LaundryAPI.Tests/LaundryAPI.Tests.csproj" />
+</Solution>

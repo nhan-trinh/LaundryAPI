@@ -1,0 +1,61 @@
+using LaundryAPI.Data;
+using LaundryAPI.Models;
+using LaundryAPI.Repositories;
+using LaundryAPI.Services;
+using LaundryAPI.Swagger;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
+
+var builder = WebApplication.CreateBuilder(args);
+var services = builder.Services;
+services.AddControllers();
+services.AddProblemDetails();
+services.AddDbContext<LaundryDbContext>((provider, options) =>
+{
+    var config = provider.GetRequiredService<IConfiguration>();
+    var hasher = provider.GetRequiredService<IPasswordHasher<Account>>();
+    options.UseSqlServer(config.GetConnectionString("Laundry"))
+        .UseSeeding((db, _) => ManagerSeed.RunAsync(db, config, hasher, CancellationToken.None).GetAwaiter().GetResult())
+        .UseAsyncSeeding((db, _, ct) => ManagerSeed.RunAsync(db, config, hasher, ct));
+});
+services.AddScoped<AccountRepository>();
+services.AddScoped<IPasswordHasher<Account>, PasswordHasher<Account>>();
+services.AddScoped<LoginService>();
+services.AddSingleton<JwtTokens>();
+services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<JwtTokens>((options, tokens) =>
+    {
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = tokens.ValidationParameters;
+    }).ValidateOnStart();
+services.AddAuthorization();
+services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "LaundryAPI", Version = "v1" });
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT"
+    });
+    options.OperationFilter<BearerOperationFilter>();
+});
+
+var app = builder.Build();
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<LaundryDbContext>();
+    await db.Database.MigrateAsync();
+}
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+app.UseSwagger();
+app.UseSwaggerUI(options => options.SwaggerEndpoint("v1/swagger.json", "LaundryAPI v1"));
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+
+public partial class Program { }
