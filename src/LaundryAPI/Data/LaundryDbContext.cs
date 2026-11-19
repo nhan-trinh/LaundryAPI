@@ -14,6 +14,7 @@ public class LaundryDbContext(DbContextOptions<LaundryDbContext> options) : DbCo
     {
         modelBuilder.Entity<ServiceOffering>().Property(s => s.Unit).HasConversion<string>().HasMaxLength(5);
         var order = modelBuilder.Entity<LaundryOrder>();
+        order.OwnsOne(o => o.Payment, payment => payment.ToTable("OrderPayments"));
         order.Property(o => o.Code).HasMaxLength(14)
             .HasComputedColumnSql("'PG-' + CONVERT(varchar(11), [Id])", stored: true);
         order.HasIndex(o => o.Code).IsUnique();

@@ -57,13 +57,13 @@ public class OrderService(OrderRepository orders)
             return null;
 
         var lines = order.Lines.OrderBy(l => l.Position).Select(l => new OrderLineResponse(
-            l.Id, l.ServiceId, l.ServiceName, l.Unit, l.UnitPriceVnd, l.Quantity, l.Note,
-            CalculateAmountVnd(l.Quantity, l.UnitPriceVnd))).ToList();
+            l.Id, l.ServiceId, l.ServiceName, l.Unit, l.UnitPriceVnd, l.Quantity, l.Note, l.AmountVnd)).ToList();
         var history = order.History.OrderBy(e => e.Id).Select(e => new OrderEventResponse(
             e.Status, e.OccurredAt, e.AccountId, e.Account.Username)).ToList();
         return new OrderResponse(order.Code, order.CustomerId, order.PromisedAt, order.Status,
             order.Version, lines, lines.Sum(l => l.AmountVnd), history,
-            order.CancellationReason, order.CancelledAt, order.CancelledBy);
+            order.CancellationReason, order.CancelledAt, order.CancelledBy,
+            order.Payment is { } payment ? new OrderPaymentResponse(payment.Method, payment.AmountVnd) : null);
     }
 
     public Task<OrderChangeResult> ChangeQuantityAsync(string code, int lineId,
@@ -80,7 +80,7 @@ public class OrderService(OrderRepository orders)
         line.Quantity = quantity;
         try
         {
-            _ = order.Lines.Sum(l => CalculateAmountVnd(l.Quantity, l.UnitPriceVnd));
+            _ = order.TotalVnd;
         }
         catch (OverflowException)
         {
@@ -102,6 +102,11 @@ public class OrderService(OrderRepository orders)
         CancellationToken ct) =>
         ChangeStatusAsync(code, request.Version, LaundryOrder.Processing, order => order.MarkReady(accountId), ct);
 
+    public Task<OrderChangeResult> HandoverAsync(string code, HandoverOrderRequest request, int accountId,
+        CancellationToken ct) =>
+        ChangeStatusAsync(code, request.Version, LaundryOrder.Ready,
+            order => order.Handover(request.PaymentMethod, accountId), ct);
+
     private Task<OrderChangeResult> ChangeStatusAsync(string code, byte[] version, string requiredStatus,
         Action<LaundryOrder> changeStatus, CancellationToken ct) =>
         orders.ChangeAsync(code, version, requiredStatus, order =>
@@ -117,13 +122,5 @@ public class OrderService(OrderRepository orders)
             throw new ValidationException(unit == ServiceUnit.Kg
                 ? "Kilograms allow at most two decimal places."
                 : "Pieces must be whole numbers.");
-    }
-
-    private static decimal CalculateAmountVnd(decimal quantity, long unitPriceVnd)
-    {
-        // Round the fractional part separately so large whole amounts cannot erase a half đồng.
-        var wholeUnits = decimal.Truncate(quantity);
-        var fractionalVnd = (quantity - wholeUnits) * unitPriceVnd;
-        return wholeUnits * unitPriceVnd + decimal.Round(fractionalVnd, 0, MidpointRounding.AwayFromZero);
     }
 }

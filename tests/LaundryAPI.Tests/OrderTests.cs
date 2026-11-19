@@ -12,9 +12,10 @@ public class OrderTests
     private sealed record Line(int ServiceId, string ServiceName, string Unit, long UnitPriceVnd,
         decimal Quantity, string? Note, decimal AmountVnd);
     private sealed record OrderHistoryEvent(string Status, int AccountId, string Username, DateTimeOffset OccurredAt);
+    private sealed record Payment(string Method, decimal AmountVnd);
     private sealed record Receipt(string Code, int CustomerId, DateTimeOffset? PromisedAt, string Status,
         string Version, Line[] Lines, decimal TotalVnd, OrderHistoryEvent[] History,
-        string? CancellationReason, DateTimeOffset? CancelledAt, int? CancelledBy);
+        string? CancellationReason, DateTimeOffset? CancelledAt, int? CancelledBy, Payment? Payment);
 
     [Fact]
     public async Task Staff_receives_mixed_laundry_and_manager_reads_the_priced_receipt_by_code()
@@ -366,6 +367,133 @@ public class OrderTests
         Assert.Equal(cancelled ? winner.OccurredAt : (DateTimeOffset?)null, saved.CancelledAt);
         Assert.Equal(received.Lines, saved.Lines);
         Assert.Equal(received.TotalVnd, saved.TotalVnd);
+    }
+
+    [Theory]
+    [InlineData("cash")]
+    [InlineData("bankTransfer")]
+    public async Task Handover_collects_the_full_quoted_total_and_records_the_staff_member(string paymentMethod)
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        using var staff = await SignInStaff(host, manager);
+        var (received, _) = await ReceiveFiveKilograms(manager);
+        var path = $"{Orders}/{received.Code}";
+        var ready = await MarkOrderReady(manager, received);
+        Assert.Null(ready.Payment);
+
+        var before = DateTimeOffset.UtcNow;
+        using var handover = await staff.PostAsJsonAsync($"{path}/handover", new { ready.Version, paymentMethod });
+        Assert.Equal(HttpStatusCode.NoContent, handover.StatusCode);
+        var returned = (await manager.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal("Returned", returned.Status);
+        Assert.NotEqual(ready.Version, returned.Version);
+        Assert.Equal(new Payment(paymentMethod, 50010m), returned.Payment);
+        Assert.Equal(ready.History, returned.History[..^1]);
+        var handedOver = returned.History[^1];
+        Assert.Equal("Returned", handedOver.Status);
+        Assert.Equal("linh", handedOver.Username);
+        Assert.InRange(handedOver.OccurredAt, before, DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public async Task Handover_requires_a_ready_order_its_current_version_and_a_supported_payment_method()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        var (received, _) = await ReceiveFiveKilograms(manager);
+        var path = $"{Orders}/{received.Code}";
+        var handoverPath = $"{path}/handover";
+
+        using var early = await manager.PostAsJsonAsync(handoverPath, new { received.Version, paymentMethod = "cash" });
+        await AssertProblem(early, HttpStatusCode.Conflict);
+        var ready = await MarkOrderReady(manager, received);
+        using var stale = await manager.PostAsJsonAsync(handoverPath, new { received.Version, paymentMethod = "cash" });
+        await AssertProblem(stale, HttpStatusCode.Conflict);
+        using var missing = await manager.PostAsJsonAsync(handoverPath, new { ready.Version });
+        await AssertProblem(missing, HttpStatusCode.BadRequest);
+        using var invalid = await manager.PostAsJsonAsync(handoverPath, new { ready.Version, paymentMethod = "card" });
+        await AssertProblem(invalid, HttpStatusCode.BadRequest);
+        var saved = (await manager.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal(ready.Version, saved.Version);
+        Assert.Equal("Ready", saved.Status);
+        Assert.Null(saved.Payment);
+        Assert.Equal(ready.History, saved.History);
+    }
+
+    [Fact]
+    public async Task Concurrent_handovers_and_a_retry_collect_once_and_record_only_the_winning_actor()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        using var staff = await SignInStaff(host, manager);
+        var (received, _) = await ReceiveFiveKilograms(manager);
+        var ready = await MarkOrderReady(manager, received);
+        var path = $"{Orders}/{received.Code}";
+        var handoverPath = $"{path}/handover";
+
+        var responses = await Task.WhenAll(
+            staff.PostAsJsonAsync(handoverPath, new { ready.Version, paymentMethod = "cash" }),
+            manager.PostAsJsonAsync(handoverPath, new { ready.Version, paymentMethod = "bankTransfer" }));
+        using var cash = responses[0];
+        using var transfer = responses[1];
+        Assert.Single(responses, response => response.StatusCode == HttpStatusCode.NoContent);
+        await AssertProblem(Assert.Single(responses, response => !response.IsSuccessStatusCode), HttpStatusCode.Conflict);
+        var returned = (await staff.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal("Returned", returned.Status);
+        Assert.Equal(new Payment(cash.IsSuccessStatusCode ? "cash" : "bankTransfer", 50010m), returned.Payment);
+        Assert.Equal(ready.History, returned.History[..^1]);
+        Assert.Equal("Returned", returned.History[^1].Status);
+        Assert.Equal(cash.IsSuccessStatusCode ? "linh" : "manager", returned.History[^1].Username);
+
+        using var retry = await manager.PostAsJsonAsync(handoverPath, new { returned.Version, paymentMethod = "cash" });
+        await AssertProblem(retry, HttpStatusCode.Conflict);
+        var saved = (await manager.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal(returned.Version, saved.Version);
+        Assert.Equal(returned.Payment, saved.Payment);
+        Assert.Equal(returned.History, saved.History);
+    }
+
+    [Fact]
+    public async Task Failure_to_record_handover_history_leaves_the_order_ready_and_unpaid()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        var (received, _) = await ReceiveFiveKilograms(manager);
+        var ready = await MarkOrderReady(manager, received);
+        var path = $"{Orders}/{received.Code}";
+        await database.RejectReturnedHistoryAsync();
+
+        using var failed = await manager.PostAsJsonAsync($"{path}/handover", new { ready.Version, paymentMethod = "cash" });
+        await AssertProblem(failed, HttpStatusCode.InternalServerError);
+        var saved = (await manager.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal("Ready", saved.Status);
+        Assert.Equal(ready.Version, saved.Version);
+        Assert.Null(saved.Payment);
+        Assert.Equal(ready.History, saved.History);
+    }
+
+    private static async Task<Receipt> MarkOrderReady(HttpClient client, Receipt received)
+    {
+        var path = $"{Orders}/{received.Code}";
+        using var start = await client.PostAsJsonAsync($"{path}/start-processing", new { received.Version });
+        Assert.Equal(HttpStatusCode.NoContent, start.StatusCode);
+        var processing = (await client.GetFromJsonAsync<Receipt>(path))!;
+        using var ready = await client.PostAsJsonAsync($"{path}/mark-ready", new { processing.Version });
+        Assert.Equal(HttpStatusCode.NoContent, ready.StatusCode);
+        return (await client.GetFromJsonAsync<Receipt>(path))!;
     }
 
     private static async Task<(Receipt Receipt, int LineId)> ReceiveFiveKilograms(HttpClient manager)

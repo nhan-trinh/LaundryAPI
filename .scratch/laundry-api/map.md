@@ -45,6 +45,8 @@ Các yêu cầu kỹ thuật ban đầu nằm trong bản đặc tả.
 
 - [30 — Bắt đầu xử lý và đánh dấu sẵn sàng trả](issues/30-xu-ly-phieu.md) — Staff và Manager xác nhận tiến độ cho toàn bộ phiếu. Phiếu giữ nguyên các dòng từ khi bắt đầu xử lý. Hủy và bắt đầu xử lý cùng phiên bản chỉ ghi nhận một thao tác.
 
+- [31 — Thu tiền và trả toàn bộ đồ](issues/31-thu-tien-tra-do.md) — Khi bàn giao phiếu sẵn sàng trả, Staff hoặc Manager ghi một khoản thu đủ bằng tiền mặt hoặc chuyển khoản và chuyển phiếu sang Đã trả trong cùng giao dịch.
+
 ## Fog
 
 Đã trả lời các câu hỏi 01–23. Chủ dự án đã duyệt đặc tả v1 và cách chia ticket triển khai.

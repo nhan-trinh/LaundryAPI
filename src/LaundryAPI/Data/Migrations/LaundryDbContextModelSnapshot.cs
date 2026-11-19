@@ -247,6 +247,30 @@ namespace LaundryAPI.Data.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.OwnsOne("LaundryAPI.Models.OrderPayment", "Payment", b1 =>
+                        {
+                            b1.Property<int>("LaundryOrderId")
+                                .HasColumnType("int");
+
+                            b1.Property<decimal>("AmountVnd")
+                                .HasPrecision(29)
+                                .HasColumnType("decimal(29,0)");
+
+                            b1.Property<string>("Method")
+                                .IsRequired()
+                                .HasMaxLength(12)
+                                .HasColumnType("nvarchar(12)");
+
+                            b1.HasKey("LaundryOrderId");
+
+                            b1.ToTable("OrderPayments", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("LaundryOrderId");
+                        });
+
+                    b.Navigation("Payment");
                 });
 
             modelBuilder.Entity("LaundryAPI.Models.OrderLine", b =>

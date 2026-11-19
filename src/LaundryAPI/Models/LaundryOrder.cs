@@ -9,6 +9,7 @@ public class LaundryOrder
     public const string Received = "Received";
     public const string Processing = "Processing";
     public const string Ready = "Ready";
+    public const string Returned = "Returned";
     public const string Cancelled = "Cancelled";
 
     public int Id { get; set; }
@@ -22,6 +23,8 @@ public class LaundryOrder
     [Timestamp]
     public byte[] Version { get; private set; } = [];
     public List<OrderLine> Lines { get; } = [];
+    public decimal TotalVnd => Lines.Sum(line => line.AmountVnd);
+    public OrderPayment? Payment { get; private set; }
     public List<OrderStatusEvent> History { get; } = [];
 
     public void Cancel(string reason, int accountId, DateTimeOffset now)
@@ -35,6 +38,12 @@ public class LaundryOrder
     public void StartProcessing(int accountId) => ChangeStatus(Processing, accountId, DateTimeOffset.UtcNow);
 
     public void MarkReady(int accountId) => ChangeStatus(Ready, accountId, DateTimeOffset.UtcNow);
+
+    public void Handover(string paymentMethod, int accountId)
+    {
+        Payment = new OrderPayment { Method = paymentMethod, AmountVnd = TotalVnd };
+        ChangeStatus(Returned, accountId, DateTimeOffset.UtcNow);
+    }
 
     private void ChangeStatus(string status, int accountId, DateTimeOffset now)
     {

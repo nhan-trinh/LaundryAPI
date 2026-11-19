@@ -74,6 +74,14 @@ public class OrdersController(OrderService orders) : ControllerBase
     public async Task<IActionResult> MarkReady(string code, OrderProgressRequest request, CancellationToken ct) =>
         ChangeResponse(await orders.MarkReadyAsync(code, request, CurrentAccountId, ct));
 
+    [HttpPost("{code}/handover")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Handover(string code, HandoverOrderRequest request, CancellationToken ct) =>
+        ChangeResponse(await orders.HandoverAsync(code, request, CurrentAccountId, ct));
+
     private int CurrentAccountId => int.Parse(User.FindFirstValue("sub")!, CultureInfo.InvariantCulture);
 
     private IActionResult ChangeResponse(OrderChangeResult result) => result switch

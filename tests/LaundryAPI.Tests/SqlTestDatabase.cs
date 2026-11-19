@@ -27,6 +27,15 @@ internal sealed class SqlTestDatabase : IAsyncDisposable
         return new ApiFactory(settings);
     }
 
+    public async Task RejectReturnedHistoryAsync()
+    {
+        await using var sql = new SqlConnection(connection.ConnectionString);
+        await sql.OpenAsync();
+        await using var command = sql.CreateCommand();
+        command.CommandText = "ALTER TABLE OrderStatusEvent ADD CHECK (Status <> 'Returned')";
+        await command.ExecuteNonQueryAsync();
+    }
+
     public async ValueTask DisposeAsync()
     {
         connection.InitialCatalog = "master";

@@ -20,10 +20,13 @@ public record CancelOrderRequest([Required, MinLength(8), MaxLength(8)] byte[] V
     [Required] string CancellationReason);
 
 public record OrderProgressRequest([Required, MinLength(8), MaxLength(8)] byte[] Version);
+public record HandoverOrderRequest([Required, MinLength(8), MaxLength(8)] byte[] Version,
+    [Required, AllowedValues(OrderPayment.Cash, OrderPayment.BankTransfer)] string PaymentMethod);
 
 public record OrderResponse(string Code, int CustomerId, DateTimeOffset? PromisedAt, string Status,
     byte[] Version, IReadOnlyList<OrderLineResponse> Lines, decimal TotalVnd, IReadOnlyList<OrderEventResponse> History,
-    string? CancellationReason, DateTimeOffset? CancelledAt, int? CancelledBy);
+    string? CancellationReason, DateTimeOffset? CancelledAt, int? CancelledBy, OrderPaymentResponse? Payment);
+public record OrderPaymentResponse(string Method, decimal AmountVnd);
 public record OrderLineResponse(int Id, int ServiceId, string ServiceName, ServiceUnit Unit, long UnitPriceVnd,
     decimal Quantity, string? Note, decimal AmountVnd);
 public record OrderEventResponse(string Status, DateTimeOffset OccurredAt, int AccountId, string Username);
