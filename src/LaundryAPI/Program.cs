@@ -23,12 +23,15 @@ services.AddDbContext<LaundryDbContext>((provider, options) =>
 services.AddScoped<AccountRepository>();
 services.AddScoped<IPasswordHasher<Account>, PasswordHasher<Account>>();
 services.AddScoped<LoginService>();
+services.AddScoped<StaffAccountService>();
+services.AddScoped<AccountTokenEvents>();
 services.AddSingleton<JwtTokens>();
 services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
     .Configure<JwtTokens>((options, tokens) =>
     {
         options.MapInboundClaims = false;
+        options.EventsType = typeof(AccountTokenEvents);
         options.TokenValidationParameters = tokens.ValidationParameters;
     }).ValidateOnStart();
 services.AddAuthorization();

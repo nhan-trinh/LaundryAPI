@@ -8,8 +8,10 @@ public class Account
 {
     public const int UsernameMaxLength = 128;
     public const string ManagerRole = "Manager";
+    public const string StaffRole = "Staff";
 
     public int Id { get; set; }
+    public bool IsLocked { get; set; }
     [MaxLength(UsernameMaxLength)]
     public required string Username { get; set; }
     [MaxLength(32)]

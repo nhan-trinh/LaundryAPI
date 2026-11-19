@@ -27,6 +27,7 @@ public static class ManagerSeed
 
         var manager = new Account { Username = username, Role = Account.ManagerRole };
         manager.PasswordHash = hasher.HashPassword(manager, password);
-        await accounts.AddAsync(manager, cancellationToken);
+        if (!await accounts.TryAddAsync(manager, cancellationToken))
+            throw new InvalidOperationException("The configured Manager username is already in use.");
     }
 }

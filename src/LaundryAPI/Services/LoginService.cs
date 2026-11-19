@@ -9,7 +9,8 @@ public class LoginService(AccountRepository accounts, IPasswordHasher<Account> h
     public async Task<string?> LoginAsync(string username, string password, CancellationToken cancellationToken)
     {
         var account = await accounts.FindAsync(username.Trim(), cancellationToken);
-        if (account is null || hasher.VerifyHashedPassword(account, account.PasswordHash, password) == PasswordVerificationResult.Failed)
+        if (account is null || account.IsLocked ||
+            hasher.VerifyHashedPassword(account, account.PasswordHash, password) == PasswordVerificationResult.Failed)
             return null;
 
         return tokens.Issue(account);

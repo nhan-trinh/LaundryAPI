@@ -36,6 +36,7 @@ Các yêu cầu kỹ thuật ban đầu nằm trong bản đặc tả.
 - [23 — Hợp đồng API v1](issues/23-hop-dong-api.md) — Dùng endpoint riêng để bắt đầu xử lý, đánh dấu sẵn sàng, trả đồ kèm thanh toán và hủy. Trả lỗi theo Problem Details, dùng HTTP 400 cho dữ liệu sai và 409 khi thao tác xung đột với trạng thái hoặc phiên bản phiếu.
 
 - [24 — Khởi tạo Manager và đăng nhập qua Swagger](issues/24-khoi-tao-manager.md) — Đã nghiệm thu trên SQL Server. Manager đăng nhập lấy JWT và giữ mật khẩu hiện có qua lần khởi động lại.
+- [25 — Cấp và khóa tài khoản nhân viên](issues/25-tai-khoan-nhan-vien.md) — Manager cấp và khóa tài khoản Staff. Khóa giữ nguyên danh tính và thu hồi quyền truy cập từ yêu cầu kế tiếp, kể cả với JWT còn hạn.
 
 ## Fog
 

@@ -3,10 +3,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace LaundryAPI.Tests;
@@ -20,14 +16,7 @@ public class ManagerLoginTests
     [Fact]
     public async Task Manager_can_use_Swagger_and_keeps_the_original_password_after_restart()
     {
-        var connection = new SqlConnectionStringBuilder(
-            Environment.GetEnvironmentVariable("LAUNDRY_TEST_SQL")
-            ?? @"Server=(localdb)\MSSQLLocalDB;Integrated Security=true;TrustServerCertificate=true");
-        var database = $"LaundryTest_{Guid.NewGuid():N}";
-        connection.InitialCatalog = "master";
-        await using var sql = new SqlConnection(connection.ConnectionString);
-        await sql.OpenAsync();
-        connection.InitialCatalog = database;
+        await using var database = new SqlTestDatabase();
         var password = RandomSecret();
         var signingKey = RandomSecret();
         var replacement = RandomSecret();
@@ -36,7 +25,7 @@ public class ManagerLoginTests
         try
         {
             Environment.SetEnvironmentVariable(seedVariable, password);
-            using (var host = new ApiFactory(connection.ConnectionString, signingKey))
+            using (var host = database.Start(signingKey))
             using (var client = host.CreateClient())
             {
                 var ui = await client.GetStringAsync("/swagger/index.html");
@@ -65,7 +54,7 @@ public class ManagerLoginTests
             }
 
             Environment.SetEnvironmentVariable(seedVariable, replacement);
-            using var restarted = new ApiFactory(connection.ConnectionString, signingKey);
+            using var restarted = database.Start(signingKey);
             using var secondClient = restarted.CreateClient();
             using var originalLogin = await Login(secondClient, password);
             Assert.Equal(HttpStatusCode.OK, originalLogin.StatusCode);
@@ -75,9 +64,6 @@ public class ManagerLoginTests
         finally
         {
             Environment.SetEnvironmentVariable(seedVariable, previousSeed);
-            await using var drop = sql.CreateCommand();
-            drop.CommandText = $"IF DB_ID('{database}') IS NOT NULL BEGIN ALTER DATABASE [{database}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{database}]; END";
-            await drop.ExecuteNonQueryAsync();
         }
     }
 
@@ -92,17 +78,5 @@ public class ManagerLoginTests
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(401, problem.GetProperty("status").GetInt32());
-    }
-
-    private sealed class ApiFactory(string connection, string key) : WebApplicationFactory<Program>
-    {
-        protected override void ConfigureWebHost(IWebHostBuilder builder) =>
-            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:Laundry"] = connection,
-                    ["ManagerSeed:Username"] = "manager",
-                    ["Jwt:SigningKey"] = key
-                }));
     }
 }
