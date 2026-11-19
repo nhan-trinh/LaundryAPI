@@ -1,9 +1,8 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
 using System.Text.Json;
 using Xunit;
+using static LaundryAPI.Tests.HttpTestHelpers;
 
 namespace LaundryAPI.Tests;
 
@@ -72,24 +71,5 @@ public class StaffAccountTests
         Assert.Equal(HttpStatusCode.NoContent, locked.StatusCode);
         using var reused = await manager.PostAsJsonAsync(Accounts, request);
         await AssertProblem(reused, HttpStatusCode.Conflict);
-    }
-
-    private static string RandomSecret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-
-    private static async Task AssertProblem(HttpResponseMessage response, HttpStatusCode status)
-    {
-        Assert.Equal(status, response.StatusCode);
-        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
-        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal((int)status, problem.GetProperty("status").GetInt32());
-    }
-
-    private static async Task SignIn(HttpClient client, string username, string password)
-    {
-        using var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { username, password });
-        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        var body = await login.Content.ReadFromJsonAsync<JsonElement>();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
-            body.GetProperty("accessToken").GetString());
     }
 }

@@ -6,4 +6,5 @@ namespace LaundryAPI.Data;
 public class LaundryDbContext(DbContextOptions<LaundryDbContext> options) : DbContext(options)
 {
     public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<Customer> Customers => Set<Customer>();
 }

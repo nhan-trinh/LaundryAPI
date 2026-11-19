@@ -37,6 +37,7 @@ Các yêu cầu kỹ thuật ban đầu nằm trong bản đặc tả.
 
 - [24 — Khởi tạo Manager và đăng nhập qua Swagger](issues/24-khoi-tao-manager.md) — Đã nghiệm thu trên SQL Server. Manager đăng nhập lấy JWT và giữ mật khẩu hiện có qua lần khởi động lại.
 - [25 — Cấp và khóa tài khoản nhân viên](issues/25-tai-khoan-nhan-vien.md) — Manager cấp và khóa tài khoản Staff. Khóa giữ nguyên danh tính và thu hồi quyền truy cập từ yêu cầu kế tiếp, kể cả với JWT còn hạn.
+- [26 — Tạo và tìm khách theo số điện thoại](issues/26-ho-so-khach-hang.md) — Staff và Manager dùng chung một hồ sơ cho hai dạng số nội địa và +84, kể cả khi tạo đồng thời.
 
 ## Fog
 
