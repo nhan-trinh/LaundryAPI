@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 using static LaundryAPI.Tests.HttpTestHelpers;
 
@@ -59,6 +58,8 @@ public class ServiceCatalogTests
 
         using var stop = await manager.PostAsync($"{path}/discontinue", null);
         Assert.Equal(HttpStatusCode.NoContent, stop.StatusCode);
+        using var staleUpdate = await manager.PutAsJsonAsync(path, request);
+        await AssertProblem(staleUpdate, HttpStatusCode.NotFound);
         var available = await staff.GetFromJsonAsync<Offering[]>(Catalog);
         Assert.Equal(kept, Assert.Single(available!));
     }
@@ -94,16 +95,6 @@ public class ServiceCatalogTests
 
         var catalog = await manager.GetFromJsonAsync<Offering[]>(Catalog);
         Assert.Equal(current, Assert.Single(catalog!));
-    }
-
-    private static async Task<HttpClient> SignInStaff(WebApplicationFactory<Program> host, HttpClient manager)
-    {
-        var password = RandomSecret();
-        using var issued = await manager.PostAsJsonAsync("/api/v1/staff-accounts", new { username = "linh", password });
-        Assert.Equal(HttpStatusCode.Created, issued.StatusCode);
-        var staff = host.CreateClient();
-        await SignIn(staff, "linh", password);
-        return staff;
     }
 
     private static async Task<Offering> Create(HttpClient manager, string name, string unit, long unitPriceVnd)

@@ -1,4 +1,5 @@
 using LaundryAPI.Data;
+using LaundryAPI.Dtos;
 using LaundryAPI.Models;
 using LaundryAPI.Repositories;
 using LaundryAPI.Services;
@@ -10,7 +11,8 @@ using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
-services.AddControllers();
+services.AddControllers().AddJsonOptions(options =>
+    options.JsonSerializerOptions.Converters.Add(new ServiceUnitJsonConverter()));
 services.AddProblemDetails();
 services.AddDbContext<LaundryDbContext>((provider, options) =>
 {

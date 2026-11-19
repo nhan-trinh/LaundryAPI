@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace LaundryAPI.Tests;
@@ -26,5 +27,15 @@ internal static class HttpTestHelpers
         var body = await login.Content.ReadFromJsonAsync<JsonElement>();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
             body.GetProperty("accessToken").GetString());
+    }
+
+    internal static async Task<HttpClient> SignInStaff(WebApplicationFactory<Program> host, HttpClient manager)
+    {
+        var password = RandomSecret();
+        using var issued = await manager.PostAsJsonAsync("/api/v1/staff-accounts", new { username = "linh", password });
+        Assert.Equal(HttpStatusCode.Created, issued.StatusCode);
+        var staff = host.CreateClient();
+        await SignIn(staff, "linh", password);
+        return staff;
     }
 }

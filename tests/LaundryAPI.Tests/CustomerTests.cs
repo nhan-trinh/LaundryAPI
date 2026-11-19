@@ -18,11 +18,7 @@ public class CustomerTests
         using var host = database.Start(RandomSecret(), managerPassword);
         using var manager = host.CreateClient();
         await SignIn(manager, "manager", managerPassword);
-        var password = RandomSecret();
-        using var issued = await manager.PostAsJsonAsync("/api/v1/staff-accounts", new { username = "linh", password });
-        Assert.Equal(HttpStatusCode.Created, issued.StatusCode);
-        using var staff = host.CreateClient();
-        await SignIn(staff, "linh", password);
+        using var staff = await SignInStaff(host, manager);
 
         await CreateAndFind(staff, manager, "0912345678", "+84912345678");
         await CreateAndFind(manager, staff, "+84987654321", "0987654321");

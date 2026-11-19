@@ -17,7 +17,7 @@ public class ServiceCatalogRepository(LaundryDbContext db) : IServiceCatalogRepo
     }
 
     public async Task<bool> UpdateAsync(int id, ServiceOffering offering, CancellationToken cancellationToken) =>
-        await db.ServiceOfferings.Where(s => s.Id == id).ExecuteUpdateAsync(setters => setters
+        await db.ServiceOfferings.Where(s => s.Id == id && s.IsActive).ExecuteUpdateAsync(setters => setters
             .SetProperty(s => s.Name, offering.Name)
             .SetProperty(s => s.Unit, offering.Unit)
             .SetProperty(s => s.UnitPriceVnd, offering.UnitPriceVnd), cancellationToken) == 1;
