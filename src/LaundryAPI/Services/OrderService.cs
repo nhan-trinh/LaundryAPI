@@ -27,11 +27,7 @@ public class OrderService(OrderRepository orders)
         foreach (var line in request.Lines)
         {
             var service = services[line.ServiceId];
-            var decimals = service.Unit == ServiceUnit.Kg ? 2 : 0;
-            if (decimal.Round(line.Quantity, decimals) != line.Quantity)
-                throw new ValidationException(service.Unit == ServiceUnit.Kg
-                    ? "Kilograms allow at most two decimal places."
-                    : "Pieces must be whole numbers.");
+            ValidateQuantity(service.Unit, line.Quantity);
 
             order.Lines.Add(new OrderLine
             {
@@ -66,7 +62,47 @@ public class OrderService(OrderRepository orders)
         var history = order.History.OrderBy(e => e.Id).Select(e => new OrderEventResponse(
             e.Status, e.OccurredAt, e.AccountId, e.Account.Username)).ToList();
         return new OrderResponse(order.Code, order.CustomerId, order.PromisedAt, order.Status,
-            order.Version, lines, lines.Sum(l => l.AmountVnd), history);
+            order.Version, lines, lines.Sum(l => l.AmountVnd), history,
+            order.CancellationReason, order.CancelledAt, order.CancelledBy);
+    }
+
+    public Task<OrderChangeResult> ChangeQuantityAsync(string code, int lineId,
+        ChangeOrderQuantityRequest request, CancellationToken ct) =>
+        orders.ChangeReceivedAsync(code, request.Version, order => TryChangeQuantity(order, lineId, request.Quantity), ct);
+
+    private static bool TryChangeQuantity(LaundryOrder order, int lineId, decimal quantity)
+    {
+        var line = order.Lines.SingleOrDefault(l => l.Id == lineId);
+        if (line is null)
+            return false;
+        ValidateQuantity(line.Unit, quantity);
+        line.Quantity = quantity;
+        try
+        {
+            _ = order.Lines.Sum(l => CalculateAmountVnd(l.Quantity, l.UnitPriceVnd));
+        }
+        catch (OverflowException)
+        {
+            throw new ValidationException("The order amount is too large.");
+        }
+        return true;
+    }
+
+    public Task<OrderChangeResult> CancelAsync(string code, CancelOrderRequest request, int accountId,
+        CancellationToken ct) =>
+        orders.ChangeReceivedAsync(code, request.Version, order =>
+        {
+            order.Cancel(request.CancellationReason.Trim(), accountId, DateTimeOffset.UtcNow);
+            return true;
+        }, ct);
+
+    private static void ValidateQuantity(ServiceUnit unit, decimal quantity)
+    {
+        var decimals = unit == ServiceUnit.Kg ? 2 : 0;
+        if (decimal.Round(quantity, decimals) != quantity)
+            throw new ValidationException(unit == ServiceUnit.Kg
+                ? "Kilograms allow at most two decimal places."
+                : "Pieces must be whole numbers.");
     }
 
     private static decimal CalculateAmountVnd(decimal quantity, long unitPriceVnd)

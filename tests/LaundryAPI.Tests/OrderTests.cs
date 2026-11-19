@@ -13,7 +13,8 @@ public class OrderTests
         decimal Quantity, string? Note, decimal AmountVnd);
     private sealed record ReceivedEvent(string Status, int AccountId, string Username, DateTimeOffset OccurredAt);
     private sealed record Receipt(string Code, int CustomerId, DateTimeOffset? PromisedAt, string Status,
-        string Version, Line[] Lines, decimal TotalVnd, ReceivedEvent[] History);
+        string Version, Line[] Lines, decimal TotalVnd, ReceivedEvent[] History,
+        string? CancellationReason, DateTimeOffset? CancelledAt, int? CancelledBy);
 
     [Fact]
     public async Task Staff_receives_mixed_laundry_and_manager_reads_the_priced_receipt_by_code()
@@ -129,6 +130,119 @@ public class OrderTests
         await AssertProblem(blocked, HttpStatusCode.Unauthorized);
         using var unknown = await manager.GetAsync($"{Orders}/PG-0");
         await AssertProblem(unknown, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Staff_edits_quantity_using_the_quoted_unit_and_price_and_must_reload_before_another_edit()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        using var staff = await SignInStaff(host, manager);
+        var kg = await CreateService(manager, "Giặt sấy", "kg", 10002);
+        var piece = await CreateService(manager, "Giặt chăn", "piece", 30000);
+        var customerId = await CreateCustomer(staff);
+        using var created = await staff.PostAsJsonAsync(Orders, new { customerId, lines = new[] {
+            new { serviceId = kg, quantity = 1 }, new { serviceId = piece, quantity = 2 } } });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var receipt = await created.Content.ReadFromJsonAsync<JsonElement>();
+        var version = receipt.GetProperty("version").GetString();
+        var path = $"{Orders}/{receipt.GetProperty("code").GetString()}";
+        var kgPath = $"{path}/lines/{receipt.GetProperty("lines")[0].GetProperty("id")}/quantity";
+        var piecePath = $"{path}/lines/{receipt.GetProperty("lines")[1].GetProperty("id")}/quantity";
+
+        using var priceChange = await manager.PutAsJsonAsync($"/api/v1/services/{kg}",
+            new { name = "Giặt áo", unit = "piece", unitPriceVnd = 900 });
+        Assert.Equal(HttpStatusCode.NoContent, priceChange.StatusCode);
+        foreach (var (url, quantity) in new[] { (kgPath, 0m), (kgPath, 0.251m), (piecePath, 1.5m),
+                     (kgPath, 99999999999999999999999999m) })
+        {
+            using var invalid = await staff.PutAsJsonAsync(url, new { version, quantity });
+            await AssertProblem(invalid, HttpStatusCode.BadRequest);
+        }
+        using var edit = await staff.PutAsJsonAsync(kgPath, new { version, quantity = 0.25m });
+        Assert.Equal(HttpStatusCode.NoContent, edit.StatusCode);
+        using var stale = await manager.PutAsJsonAsync(piecePath, new { version, quantity = 3 });
+        await AssertProblem(stale, HttpStatusCode.Conflict);
+        using var staleCancel = await manager.PostAsJsonAsync($"{path}/cancel", new { version, cancellationReason = "Trùng phiếu" });
+        await AssertProblem(staleCancel, HttpStatusCode.Conflict);
+        var saved = (await staff.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal("Received", saved.Status);
+        Assert.Single(saved.History);
+        Assert.NotEqual(version, saved.Version);
+        Assert.Equal(62501, saved.TotalVnd);
+        Assert.Equal(new Line(kg, "Giặt sấy", "kg", 10002, 0.25m, null, 2501), saved.Lines[0]);
+        Assert.Equal(2, saved.Lines[1].Quantity);
+    }
+
+    [Fact]
+    public async Task Concurrent_cancellations_preserve_the_receipt_and_record_only_the_successful_actor_and_reason()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        using var staff = await SignInStaff(host, manager);
+        var serviceId = await CreateService(manager, "Giặt chăn", "piece", 30000);
+        var customerId = await CreateCustomer(staff);
+        using var created = await manager.PostAsJsonAsync(Orders, new { customerId, lines = new[] {
+            new { serviceId, quantity = 1, note = "Chăn xanh" }, new { serviceId, quantity = 2, note = "Chăn đỏ" } } });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var receipt = await created.Content.ReadFromJsonAsync<JsonElement>();
+        var original = receipt.Deserialize<Receipt>(JsonSerializerOptions.Web)!;
+        var lineId = receipt.GetProperty("lines")[0].GetProperty("id").GetInt32();
+        var path = $"{Orders}/{original.Code}";
+        var cancel = $"{path}/cancel";
+        var version = original.Version;
+        foreach (var body in new object[] { new { version }, new { version, cancellationReason = "  " },
+                     new { cancellationReason = "Sai phiếu" } })
+        {
+            using var invalid = await staff.PostAsJsonAsync(cancel, body);
+            await AssertProblem(invalid, HttpStatusCode.BadRequest);
+        }
+        var received = (await staff.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal("Received", received.Status);
+        Assert.Equal(version, received.Version);
+        Assert.Null(received.CancelledAt);
+        Assert.Null(received.CancelledBy);
+        Assert.Null(received.CancellationReason);
+
+        var before = DateTimeOffset.UtcNow;
+        var outcomes = await Task.WhenAll(
+            staff.PostAsJsonAsync(cancel, new { version, cancellationReason = "Khách đổi ý", cancelledBy = -1 }),
+            manager.PostAsJsonAsync(cancel, new { version, cancellationReason = "Trùng phiếu" }));
+        using var staffResult = outcomes[0];
+        using var managerResult = outcomes[1];
+        Assert.Single(outcomes, r => r.StatusCode == HttpStatusCode.NoContent);
+        await AssertProblem(Assert.Single(outcomes, r => r.StatusCode != HttpStatusCode.NoContent), HttpStatusCode.Conflict);
+        var saved = (await manager.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal("Cancelled", saved.Status);
+        Assert.NotEqual(version, saved.Version);
+        Assert.Equal(original.Lines, saved.Lines);
+        Assert.Equal(original.TotalVnd, saved.TotalVnd);
+        Assert.Equal(2, saved.History.Length);
+        Assert.Equal(Assert.Single(original.History), saved.History[0]);
+        var cancelled = saved.History[1];
+        var staffWon = staffResult.IsSuccessStatusCode;
+        Assert.Equal("Cancelled", cancelled.Status);
+        Assert.Equal(staffWon ? "linh" : "manager", cancelled.Username);
+        Assert.Equal(staffWon ? "Khách đổi ý" : "Trùng phiếu", saved.CancellationReason);
+        Assert.Equal(cancelled.AccountId, saved.CancelledBy);
+        Assert.Equal(cancelled.OccurredAt, saved.CancelledAt);
+        Assert.InRange(cancelled.OccurredAt, before, DateTimeOffset.UtcNow);
+
+        using var edit = await manager.PutAsJsonAsync($"{path}/lines/{lineId}/quantity", new { saved.Version, quantity = 3 });
+        await AssertProblem(edit, HttpStatusCode.Conflict);
+        using var repeat = await staff.PostAsJsonAsync(cancel, new { saved.Version, cancellationReason = "Lý do mới" });
+        await AssertProblem(repeat, HttpStatusCode.Conflict);
+        var final = (await manager.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal(saved.Version, final.Version);
+        Assert.Equal(saved.History, final.History);
+        Assert.Equal(saved.Lines, final.Lines);
+        Assert.Equal(saved.CancellationReason, final.CancellationReason);
     }
 
     private static Task<int> CreateCustomer(HttpClient client) => CreateId(client, "/api/v1/customers",

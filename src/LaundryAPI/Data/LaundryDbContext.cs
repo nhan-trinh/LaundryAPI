@@ -18,6 +18,7 @@ public class LaundryDbContext(DbContextOptions<LaundryDbContext> options) : DbCo
             .HasComputedColumnSql("'PG-' + CONVERT(varchar(11), [Id])", stored: true);
         order.HasIndex(o => o.Code).IsUnique();
         order.HasOne<Customer>().WithMany().HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        order.HasOne<Account>().WithMany().HasForeignKey(o => o.CancelledBy).OnDelete(DeleteBehavior.Restrict);
         var line = modelBuilder.Entity<OrderLine>();
         line.Property(l => l.Unit).HasConversion<string>().HasMaxLength(5);
         line.HasOne<ServiceOffering>().WithMany().HasForeignKey(l => l.ServiceId).OnDelete(DeleteBehavior.Restrict);

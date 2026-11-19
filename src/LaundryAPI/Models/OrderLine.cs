@@ -12,6 +12,6 @@ public class OrderLine
     public ServiceUnit Unit { get; init; }
     public long UnitPriceVnd { get; init; }
     [Precision(28, 2)]
-    public decimal Quantity { get; init; }
+    public decimal Quantity { get; set; }
     public string? Note { get; init; }
 }

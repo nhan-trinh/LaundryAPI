@@ -88,6 +88,15 @@ namespace LaundryAPI.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CancellationReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("CancelledBy")
+                        .HasColumnType("int");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
@@ -112,6 +121,8 @@ namespace LaundryAPI.Data.Migrations
                         .HasColumnType("rowversion");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CancelledBy");
 
                     b.HasIndex("Code")
                         .IsUnique();
@@ -226,6 +237,11 @@ namespace LaundryAPI.Data.Migrations
 
             modelBuilder.Entity("LaundryAPI.Models.LaundryOrder", b =>
                 {
+                    b.HasOne("LaundryAPI.Models.Account", null)
+                        .WithMany()
+                        .HasForeignKey("CancelledBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("LaundryAPI.Models.Customer", null)
                         .WithMany()
                         .HasForeignKey("CustomerId")

@@ -10,9 +10,17 @@ public record CreateOrderLine(int ServiceId,
     [property: JsonConverter(typeof(OrderQuantityJsonConverter))]
     [Range(typeof(decimal), "0.01", "99999999999999999999999999.99", ParseLimitsInInvariantCulture = true)]
     decimal Quantity, string? Note);
+public record ChangeOrderQuantityRequest([Required, MinLength(8), MaxLength(8)] byte[] Version,
+    [property: JsonConverter(typeof(OrderQuantityJsonConverter))]
+    [Range(typeof(decimal), "0.01", "99999999999999999999999999.99", ParseLimitsInInvariantCulture = true)]
+    decimal Quantity);
+
+public record CancelOrderRequest([Required, MinLength(8), MaxLength(8)] byte[] Version,
+    [Required] string CancellationReason);
 
 public record OrderResponse(string Code, int CustomerId, DateTimeOffset? PromisedAt, string Status,
-    byte[] Version, IReadOnlyList<OrderLineResponse> Lines, decimal TotalVnd, IReadOnlyList<OrderEventResponse> History);
+    byte[] Version, IReadOnlyList<OrderLineResponse> Lines, decimal TotalVnd, IReadOnlyList<OrderEventResponse> History,
+    string? CancellationReason, DateTimeOffset? CancelledAt, int? CancelledBy);
 public record OrderLineResponse(int Id, int ServiceId, string ServiceName, ServiceUnit Unit, long UnitPriceVnd,
     decimal Quantity, string? Note, decimal AmountVnd);
 public record OrderEventResponse(string Status, DateTimeOffset OccurredAt, int AccountId, string Username);

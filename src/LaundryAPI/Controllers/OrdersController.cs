@@ -21,10 +21,9 @@ public class OrdersController(OrderService orders) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<OrderResponse>> Create(CreateOrderRequest request, CancellationToken ct)
     {
-        var accountId = int.Parse(User.FindFirstValue("sub")!, CultureInfo.InvariantCulture);
         try
         {
-            var created = await orders.CreateAsync(request, accountId, ct);
+            var created = await orders.CreateAsync(request, CurrentAccountId, ct);
             return CreatedAtAction(nameof(Find), new { code = created.Code }, created);
         }
         catch (ValidationException error)
@@ -32,6 +31,43 @@ public class OrdersController(OrderService orders) : ControllerBase
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: error.Message);
         }
     }
+
+    [HttpPut("{code}/lines/{lineId:int}/quantity")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ChangeQuantity(string code, int lineId, ChangeOrderQuantityRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            return ChangeResponse(await orders.ChangeQuantityAsync(code, lineId, request, ct));
+        }
+        catch (ValidationException error)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: error.Message);
+        }
+    }
+
+    [HttpPost("{code}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Cancel(string code, CancelOrderRequest request, CancellationToken ct) =>
+        ChangeResponse(await orders.CancelAsync(code, request, CurrentAccountId, ct));
+
+    private int CurrentAccountId => int.Parse(User.FindFirstValue("sub")!, CultureInfo.InvariantCulture);
+
+    private IActionResult ChangeResponse(OrderChangeResult result) => result switch
+    {
+        OrderChangeResult.Saved => NoContent(),
+        OrderChangeResult.NotFound => Problem(statusCode: StatusCodes.Status404NotFound, title: "Order or line not found."),
+        OrderChangeResult.Conflict => Problem(statusCode: StatusCodes.Status409Conflict,
+            title: "The order has changed or is no longer received. Reload the order."),
+        _ => throw new ArgumentOutOfRangeException(nameof(result))
+    };
 
     [HttpGet("{code}")]
     [ProducesResponseType<OrderResponse>(StatusCodes.Status200OK)]

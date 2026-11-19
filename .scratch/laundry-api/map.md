@@ -41,6 +41,8 @@ Các yêu cầu kỹ thuật ban đầu nằm trong bản đặc tả.
 - [27 — Quản lý dịch vụ và bảng giá](issues/27-dich-vu-va-bang-gia.md) — Manager quản lý đơn vị và giá VND. Staff và Manager thấy giá hiện hành của các dịch vụ đang cung cấp.
 - [28 — Lập và đọc lại phiếu giặt](issues/28-lap-phieu-giat.md) — Staff và Manager lập phiếu và đọc lại theo mã, gồm giá từng dòng lúc nhận đồ, tổng tiền, phiên bản và người tiếp nhận.
 
+- [29 — Sửa hoặc hủy phiếu khi vừa nhận](issues/29-sua-huy-phieu.md) — Khi phiếu còn Đã nhận, Staff và Manager sửa lượng theo giá đã lưu hoặc hủy có lý do. Mỗi lần ghi thành công đổi phiên bản phiếu và lần hủy được ghi vào lịch sử.
+
 ## Fog
 
 Đã trả lời các câu hỏi 01–23. Chủ dự án đã duyệt đặc tả v1 và cách chia ticket triển khai.
