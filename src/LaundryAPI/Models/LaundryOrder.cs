@@ -7,6 +7,8 @@ public enum OrderChangeResult { Saved, NotFound, Conflict }
 public class LaundryOrder
 {
     public const string Received = "Received";
+    public const string Processing = "Processing";
+    public const string Ready = "Ready";
     public const string Cancelled = "Cancelled";
 
     public int Id { get; set; }
@@ -24,10 +26,15 @@ public class LaundryOrder
 
     public void Cancel(string reason, int accountId, DateTimeOffset now)
     {
-        Status = Cancelled;
         CancellationReason = reason;
         CancelledAt = now;
         CancelledBy = accountId;
-        History.Add(new OrderStatusEvent { Status = Cancelled, OccurredAt = now, AccountId = accountId });
+        ChangeStatus(Cancelled, accountId, now);
+    }
+
+    public void ChangeStatus(string status, int accountId, DateTimeOffset now)
+    {
+        Status = status;
+        History.Add(new OrderStatusEvent { Status = status, OccurredAt = now, AccountId = accountId });
     }
 }

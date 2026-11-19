@@ -19,6 +19,8 @@ public record ChangeOrderQuantityRequest([Required, MinLength(8), MaxLength(8)] 
 public record CancelOrderRequest([Required, MinLength(8), MaxLength(8)] byte[] Version,
     [Required] string CancellationReason);
 
+public record OrderProgressRequest([Required, MinLength(8), MaxLength(8)] byte[] Version);
+
 public record OrderResponse(string Code, int CustomerId, DateTimeOffset? PromisedAt, string Status,
     byte[] Version, IReadOnlyList<OrderLineResponse> Lines, decimal TotalVnd, IReadOnlyList<OrderEventResponse> History,
     string? CancellationReason, DateTimeOffset? CancelledAt, int? CancelledBy);

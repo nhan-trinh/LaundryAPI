@@ -33,14 +33,14 @@ public class OrderRepository(LaundryDbContext db)
         db.Orders.AsNoTracking().Include(o => o.Lines).Include(o => o.History).ThenInclude(e => e.Account)
             .AsSingleQuery().SingleOrDefaultAsync(o => o.Code == code, ct);
 
-    public async Task<OrderChangeResult> ChangeReceivedAsync(string code, byte[] version,
+    public async Task<OrderChangeResult> ChangeAsync(string code, byte[] version, string requiredStatus,
         Func<LaundryOrder, bool> tryApply, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var receipt = db.Orders.Where(o => o.Code == code);
         // Claim the parent row before touching lines or history. Even a line-only edit advances its rowversion.
-        var updated = await receipt.Where(o => o.Status == LaundryOrder.Received && o.Version == version)
-            .ExecuteUpdateAsync(set => set.SetProperty(o => o.Status, LaundryOrder.Received), ct);
+        var updated = await receipt.Where(o => o.Status == requiredStatus && o.Version == version)
+            .ExecuteUpdateAsync(set => set.SetProperty(o => o.Status, requiredStatus), ct);
         if (updated == 0)
         {
             return await receipt.AnyAsync(ct) ? OrderChangeResult.Conflict : OrderChangeResult.NotFound;

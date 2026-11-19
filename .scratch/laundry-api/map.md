@@ -43,6 +43,8 @@ Các yêu cầu kỹ thuật ban đầu nằm trong bản đặc tả.
 
 - [29 — Sửa hoặc hủy phiếu khi vừa nhận](issues/29-sua-huy-phieu.md) — Khi phiếu còn Đã nhận, Staff và Manager sửa lượng theo giá đã lưu hoặc hủy có lý do. Mỗi lần ghi thành công đổi phiên bản phiếu và lần hủy được ghi vào lịch sử.
 
+- [30 — Bắt đầu xử lý và đánh dấu sẵn sàng trả](issues/30-xu-ly-phieu.md) — Staff và Manager xác nhận tiến độ cho toàn bộ phiếu. Phiếu giữ nguyên các dòng từ khi bắt đầu xử lý. Hủy và bắt đầu xử lý cùng phiên bản chỉ ghi nhận một thao tác.
+
 ## Fog
 
 Đã trả lời các câu hỏi 01–23. Chủ dự án đã duyệt đặc tả v1 và cách chia ticket triển khai.

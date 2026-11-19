@@ -68,7 +68,8 @@ public class OrderService(OrderRepository orders)
 
     public Task<OrderChangeResult> ChangeQuantityAsync(string code, int lineId,
         ChangeOrderQuantityRequest request, CancellationToken ct) =>
-        orders.ChangeReceivedAsync(code, request.Version, order => TryChangeQuantity(order, lineId, request.Quantity), ct);
+        orders.ChangeAsync(code, request.Version, LaundryOrder.Received,
+            order => TryChangeQuantity(order, lineId, request.Quantity), ct);
 
     private static bool TryChangeQuantity(LaundryOrder order, int lineId, decimal quantity)
     {
@@ -90,9 +91,25 @@ public class OrderService(OrderRepository orders)
 
     public Task<OrderChangeResult> CancelAsync(string code, CancelOrderRequest request, int accountId,
         CancellationToken ct) =>
-        orders.ChangeReceivedAsync(code, request.Version, order =>
+        orders.ChangeAsync(code, request.Version, LaundryOrder.Received, order =>
         {
             order.Cancel(request.CancellationReason.Trim(), accountId, DateTimeOffset.UtcNow);
+            return true;
+        }, ct);
+
+    public Task<OrderChangeResult> StartProcessingAsync(string code, OrderProgressRequest request, int accountId,
+        CancellationToken ct) =>
+        AdvanceAsync(code, request.Version, LaundryOrder.Received, LaundryOrder.Processing, accountId, ct);
+
+    public Task<OrderChangeResult> MarkReadyAsync(string code, OrderProgressRequest request, int accountId,
+        CancellationToken ct) =>
+        AdvanceAsync(code, request.Version, LaundryOrder.Processing, LaundryOrder.Ready, accountId, ct);
+
+    private Task<OrderChangeResult> AdvanceAsync(string code, byte[] version, string requiredStatus,
+        string nextStatus, int accountId, CancellationToken ct) =>
+        orders.ChangeAsync(code, version, requiredStatus, order =>
+        {
+            order.ChangeStatus(nextStatus, accountId, DateTimeOffset.UtcNow);
             return true;
         }, ct);
 

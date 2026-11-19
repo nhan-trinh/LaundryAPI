@@ -58,6 +58,22 @@ public class OrdersController(OrderService orders) : ControllerBase
     public async Task<IActionResult> Cancel(string code, CancelOrderRequest request, CancellationToken ct) =>
         ChangeResponse(await orders.CancelAsync(code, request, CurrentAccountId, ct));
 
+    [HttpPost("{code}/start-processing")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> StartProcessing(string code, OrderProgressRequest request, CancellationToken ct) =>
+        ChangeResponse(await orders.StartProcessingAsync(code, request, CurrentAccountId, ct));
+
+    [HttpPost("{code}/mark-ready")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MarkReady(string code, OrderProgressRequest request, CancellationToken ct) =>
+        ChangeResponse(await orders.MarkReadyAsync(code, request, CurrentAccountId, ct));
+
     private int CurrentAccountId => int.Parse(User.FindFirstValue("sub")!, CultureInfo.InvariantCulture);
 
     private IActionResult ChangeResponse(OrderChangeResult result) => result switch
@@ -65,7 +81,7 @@ public class OrdersController(OrderService orders) : ControllerBase
         OrderChangeResult.Saved => NoContent(),
         OrderChangeResult.NotFound => Problem(statusCode: StatusCodes.Status404NotFound, title: "Order or line not found."),
         OrderChangeResult.Conflict => Problem(statusCode: StatusCodes.Status409Conflict,
-            title: "The order has changed or is no longer received. Reload the order."),
+            title: "The order version or status does not allow this change. Reload the order."),
         _ => throw new ArgumentOutOfRangeException(nameof(result))
     };
 

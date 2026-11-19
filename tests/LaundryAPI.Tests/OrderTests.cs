@@ -245,6 +245,140 @@ public class OrderTests
         Assert.Equal(saved.CancellationReason, final.CancellationReason);
     }
 
+    [Fact]
+    public async Task Starting_processing_locks_the_received_weight_and_records_the_staff_member()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        using var staff = await SignInStaff(host, manager);
+        var (received, lineId) = await ReceiveFiveKilograms(manager);
+        var path = $"{Orders}/{received.Code}";
+        var before = DateTimeOffset.UtcNow;
+
+        using var start = await staff.PostAsJsonAsync($"{path}/start-processing", new { received.Version });
+        Assert.Equal(HttpStatusCode.NoContent, start.StatusCode);
+        var processing = (await manager.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal("Processing", processing.Status);
+        Assert.NotEqual(received.Version, processing.Version);
+        Assert.Equal(2, processing.History.Length);
+        Assert.Equal(Assert.Single(received.History), processing.History[0]);
+        var started = processing.History[1];
+        Assert.Equal("Processing", started.Status);
+        Assert.Equal("linh", started.Username);
+        Assert.InRange(started.OccurredAt, before, DateTimeOffset.UtcNow);
+
+        using var repeat = await staff.PostAsJsonAsync($"{path}/start-processing", new { processing.Version });
+        await AssertProblem(repeat, HttpStatusCode.Conflict);
+        foreach (var client in new[] { staff, manager })
+        {
+            using var edit = await client.PutAsJsonAsync($"{path}/lines/{lineId}/quantity",
+                new { processing.Version, quantity = 3 });
+            await AssertProblem(edit, HttpStatusCode.Conflict);
+            using var cancel = await client.PostAsJsonAsync($"{path}/cancel",
+                new { processing.Version, cancellationReason = "Sai phiếu" });
+            await AssertProblem(cancel, HttpStatusCode.Conflict);
+        }
+        var saved = (await staff.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal(processing.Version, saved.Version);
+        Assert.Equal(processing.History, saved.History);
+        Assert.Equal(5m, Assert.Single(saved.Lines).Quantity);
+        Assert.Equal(50010m, saved.TotalVnd);
+    }
+
+    [Fact]
+    public async Task Marking_the_whole_order_ready_requires_processing_and_its_current_version()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        using var staff = await SignInStaff(host, manager);
+        var (received, _) = await ReceiveFiveKilograms(manager);
+        var path = $"{Orders}/{received.Code}";
+        var readyPath = $"{path}/mark-ready";
+
+        using var skipped = await manager.PostAsJsonAsync(readyPath, new { received.Version });
+        await AssertProblem(skipped, HttpStatusCode.Conflict);
+        using var start = await staff.PostAsJsonAsync($"{path}/start-processing", new { received.Version });
+        Assert.Equal(HttpStatusCode.NoContent, start.StatusCode);
+        var processing = (await staff.GetFromJsonAsync<Receipt>(path))!;
+        using var stale = await manager.PostAsJsonAsync(readyPath, new { received.Version });
+        await AssertProblem(stale, HttpStatusCode.Conflict);
+
+        var before = DateTimeOffset.UtcNow;
+        using var confirm = await manager.PostAsJsonAsync(readyPath, new { processing.Version });
+        Assert.Equal(HttpStatusCode.NoContent, confirm.StatusCode);
+        var ready = (await staff.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal("Ready", ready.Status);
+        Assert.NotEqual(processing.Version, ready.Version);
+        Assert.Equal(received.Lines, ready.Lines);
+        Assert.Equal(50010m, ready.TotalVnd);
+        Assert.Equal(3, ready.History.Length);
+        Assert.Equal(processing.History, ready.History[..2]);
+        var confirmed = ready.History[2];
+        Assert.Equal("Ready", confirmed.Status);
+        Assert.Equal("manager", confirmed.Username);
+        Assert.Equal(received.History[0].AccountId, confirmed.AccountId);
+        Assert.InRange(confirmed.OccurredAt, before, DateTimeOffset.UtcNow);
+
+        using var repeat = await staff.PostAsJsonAsync(readyPath, new { ready.Version });
+        await AssertProblem(repeat, HttpStatusCode.Conflict);
+        var saved = (await staff.GetFromJsonAsync<Receipt>(path))!;
+        Assert.Equal(ready.Version, saved.Version);
+        Assert.Equal(ready.History, saved.History);
+    }
+
+    [Fact]
+    public async Task Concurrent_cancellation_and_processing_record_only_the_winning_step()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        using var staff = await SignInStaff(host, manager);
+        var (received, _) = await ReceiveFiveKilograms(manager);
+        var path = $"{Orders}/{received.Code}";
+
+        var outcomes = await Task.WhenAll(
+            staff.PostAsJsonAsync($"{path}/start-processing", new { received.Version }),
+            manager.PostAsJsonAsync($"{path}/cancel", new { received.Version, cancellationReason = "Trùng phiếu" }));
+        using var start = outcomes[0];
+        using var cancel = outcomes[1];
+        Assert.Single(outcomes, r => r.StatusCode == HttpStatusCode.NoContent);
+        await AssertProblem(Assert.Single(outcomes, r => r.StatusCode != HttpStatusCode.NoContent), HttpStatusCode.Conflict);
+
+        var saved = (await staff.GetFromJsonAsync<Receipt>(path))!;
+        var cancelled = cancel.IsSuccessStatusCode;
+        Assert.Equal(cancelled ? "Cancelled" : "Processing", saved.Status);
+        Assert.NotEqual(received.Version, saved.Version);
+        Assert.Equal(2, saved.History.Length);
+        Assert.Equal(Assert.Single(received.History), saved.History[0]);
+        var winner = saved.History[1];
+        Assert.Equal(saved.Status, winner.Status);
+        Assert.Equal(cancelled ? "manager" : "linh", winner.Username);
+        Assert.Equal(cancelled ? "Trùng phiếu" : null, saved.CancellationReason);
+        Assert.Equal(cancelled ? winner.AccountId : (int?)null, saved.CancelledBy);
+        Assert.Equal(cancelled ? winner.OccurredAt : (DateTimeOffset?)null, saved.CancelledAt);
+        Assert.Equal(received.Lines, saved.Lines);
+        Assert.Equal(received.TotalVnd, saved.TotalVnd);
+    }
+
+    private static async Task<(Receipt Receipt, int LineId)> ReceiveFiveKilograms(HttpClient manager)
+    {
+        var serviceId = await CreateService(manager, "Giặt sấy", "kg", 10002);
+        var customerId = await CreateCustomer(manager);
+        using var response = await manager.PostAsJsonAsync(Orders,
+            new { customerId, lines = new[] { new { serviceId, quantity = 5 } } });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return (body.Deserialize<Receipt>(JsonSerializerOptions.Web)!, body.GetProperty("lines")[0].GetProperty("id").GetInt32());
+    }
+
     private static Task<int> CreateCustomer(HttpClient client) => CreateId(client, "/api/v1/customers",
         new { name = "Hà", phoneNumber = "0912345678" });
 
