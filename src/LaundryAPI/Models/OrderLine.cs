@@ -14,13 +14,4 @@ public class OrderLine
     [Precision(28, 2)]
     public decimal Quantity { get; init; }
     public string? Note { get; init; }
-    public decimal AmountVnd
-    {
-        get
-        {
-            var wholeUnits = decimal.Truncate(Quantity);
-            var fractionalVnd = (Quantity - wholeUnits) * UnitPriceVnd;
-            return wholeUnits * UnitPriceVnd + decimal.Round(fractionalVnd, 0, MidpointRounding.AwayFromZero);
-        }
-    }
 }

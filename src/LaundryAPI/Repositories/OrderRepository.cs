@@ -2,15 +2,19 @@ using System.Data;
 using LaundryAPI.Data;
 using LaundryAPI.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace LaundryAPI.Repositories;
 
 public class OrderRepository(LaundryDbContext db)
 {
     // Keep the quoted services active and at their observed prices until the receipt is saved.
-    public Task<IDbContextTransaction> BeginReceiptAsync(CancellationToken ct) =>
-        db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+    public async Task<T> InReceiptTransactionAsync<T>(Func<Task<T>> receive, CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        var result = await receive();
+        await transaction.CommitAsync(ct);
+        return result;
+    }
 
     public Task<bool> CustomerExistsAsync(int id, CancellationToken ct) =>
         db.Customers.AnyAsync(c => c.Id == id, ct);

@@ -79,6 +79,12 @@ public class OrderTests
             using var response = await manager.PostAsJsonAsync(Orders, request);
             await AssertProblem(response, HttpStatusCode.BadRequest);
         }
+        var fractionalPiece = $$"""
+            {"customerId":{{customerId}},"lines":[{"serviceId":{{piece}},"quantity":1.00000000000000000000000000001}]}
+            """;
+        using var body = new StringContent(fractionalPiece, System.Text.Encoding.UTF8, "application/json");
+        using var inexact = await manager.PostAsync(Orders, body);
+        await AssertProblem(inexact, HttpStatusCode.BadRequest);
     }
 
     [Fact]
