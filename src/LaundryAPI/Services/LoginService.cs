@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace LaundryAPI.Services;
 
-public class LoginService(AccountRepository accounts, IPasswordHasher<Account> hasher, JwtTokens tokens)
+public class LoginService(IAccountRepository accounts, IPasswordHasher<Account> hasher, JwtTokens tokens) : ILoginService
 {
     public async Task<string?> LoginAsync(string username, string password, CancellationToken cancellationToken)
     {

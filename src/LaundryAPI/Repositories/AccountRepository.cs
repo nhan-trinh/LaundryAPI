@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LaundryAPI.Repositories;
 
-public class AccountRepository(LaundryDbContext db)
+public class AccountRepository(LaundryDbContext db) : IAccountRepository
 {
     public Task<Account?> FindAsync(string username, CancellationToken cancellationToken) =>
         db.Accounts.AsNoTracking().SingleOrDefaultAsync(a => a.Username == username, cancellationToken);

@@ -11,7 +11,7 @@ namespace LaundryAPI.Controllers;
 [Authorize(Roles = Account.ManagerRole)]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
-public class StaffAccountsController(StaffAccountService staffAccounts) : ControllerBase
+public class StaffAccountsController(IStaffAccountService staffAccounts) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType<StaffAccountResponse>(StatusCodes.Status201Created)]
@@ -24,7 +24,7 @@ public class StaffAccountsController(StaffAccountService staffAccounts) : Contro
         if (account is null)
             return Problem(statusCode: StatusCodes.Status409Conflict, title: "Username is already in use.");
 
-        return StatusCode(StatusCodes.Status201Created, new StaffAccountResponse(account.Id, account.Username));
+        return StatusCode(StatusCodes.Status201Created, account);
     }
 
     [HttpPost("{id:int}/lock")]

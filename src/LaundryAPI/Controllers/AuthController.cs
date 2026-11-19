@@ -7,7 +7,7 @@ namespace LaundryAPI.Controllers;
 
 [ApiController]
 [Route("api/v1/auth")]
-public class AuthController(LoginService loginService) : ControllerBase
+public class AuthController(ILoginService loginService) : ControllerBase
 {
     [HttpPost("login")]
     [AllowAnonymous]

@@ -16,14 +16,17 @@ services.AddDbContext<LaundryDbContext>((provider, options) =>
 {
     var config = provider.GetRequiredService<IConfiguration>();
     var hasher = provider.GetRequiredService<IPasswordHasher<Account>>();
+    Task SeedManagerAsync(DbContext db, CancellationToken ct) =>
+        ManagerSeed.RunAsync(new AccountRepository((LaundryDbContext)db), config, hasher, ct);
+
     options.UseSqlServer(config.GetConnectionString("Laundry"))
-        .UseSeeding((db, _) => ManagerSeed.RunAsync(db, config, hasher, CancellationToken.None).GetAwaiter().GetResult())
-        .UseAsyncSeeding((db, _, ct) => ManagerSeed.RunAsync(db, config, hasher, ct));
+        .UseSeeding((db, _) => SeedManagerAsync(db, CancellationToken.None).GetAwaiter().GetResult())
+        .UseAsyncSeeding((db, _, ct) => SeedManagerAsync(db, ct));
 });
-services.AddScoped<AccountRepository>();
+services.AddScoped<IAccountRepository, AccountRepository>();
 services.AddScoped<IPasswordHasher<Account>, PasswordHasher<Account>>();
-services.AddScoped<LoginService>();
-services.AddScoped<StaffAccountService>();
+services.AddScoped<ILoginService, LoginService>();
+services.AddScoped<IStaffAccountService, StaffAccountService>();
 services.AddScoped<AccountTokenEvents>();
 services.AddSingleton<JwtTokens>();
 services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();

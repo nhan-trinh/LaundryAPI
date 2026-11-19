@@ -1,16 +1,14 @@
 using LaundryAPI.Models;
 using LaundryAPI.Repositories;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 
 namespace LaundryAPI.Data;
 
 public static class ManagerSeed
 {
-    public static async Task RunAsync(DbContext context, IConfiguration config,
+    public static async Task RunAsync(IAccountRepository accounts, IConfiguration config,
         IPasswordHasher<Account> hasher, CancellationToken cancellationToken)
     {
-        var accounts = new AccountRepository((LaundryDbContext)context);
         if (await accounts.HasManagerAsync(cancellationToken))
             return;
 

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace LaundryAPI.Services;
 
-public class AccountTokenEvents(AccountRepository accounts) : JwtBearerEvents
+public class AccountTokenEvents(IAccountRepository accounts) : JwtBearerEvents
 {
     public override async Task TokenValidated(TokenValidatedContext context)
     {
