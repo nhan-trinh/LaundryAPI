@@ -33,6 +33,8 @@ services.AddScoped<ICustomerRepository, CustomerRepository>();
 services.AddScoped<ICustomerService, CustomerService>();
 services.AddScoped<IServiceCatalogRepository, ServiceCatalogRepository>();
 services.AddScoped<IServiceCatalog, ServiceCatalog>();
+services.AddScoped<OrderRepository>();
+services.AddScoped<OrderService>();
 services.AddScoped<AccountTokenEvents>();
 services.AddSingleton<JwtTokens>();
 services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();

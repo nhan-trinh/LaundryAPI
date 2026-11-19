@@ -1,0 +1,47 @@
+using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Security.Claims;
+using LaundryAPI.Dtos;
+using LaundryAPI.Models;
+using LaundryAPI.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace LaundryAPI.Controllers;
+
+[ApiController]
+[Route("api/v1/orders")]
+[Authorize(Roles = Account.StaffRole + "," + Account.ManagerRole)]
+[ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
+public class OrdersController(OrderService orders) : ControllerBase
+{
+    [HttpPost]
+    [ProducesResponseType<OrderResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<OrderResponse>> Create(CreateOrderRequest request, CancellationToken ct)
+    {
+        var accountId = int.Parse(User.FindFirstValue("sub")!, CultureInfo.InvariantCulture);
+        try
+        {
+            var created = await orders.CreateAsync(request, accountId, ct);
+            return CreatedAtAction(nameof(Find), new { code = created.Code }, created);
+        }
+        catch (ValidationException error)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: error.Message);
+        }
+    }
+
+    [HttpGet("{code}")]
+    [ProducesResponseType<OrderResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<OrderResponse>> Find(string code, CancellationToken ct)
+    {
+        var order = await orders.FindAsync(code, ct);
+        if (order is null)
+            return Problem(statusCode: StatusCodes.Status404NotFound, title: "Order not found.");
+
+        return Ok(order);
+    }
+}
