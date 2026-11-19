@@ -61,7 +61,7 @@ public class OrderService(OrderRepository orders)
         var history = order.History.OrderBy(e => e.Id).Select(e => new OrderEventResponse(
             e.Status, e.OccurredAt, e.AccountId, e.Account.Username)).ToList();
         return new OrderResponse(order.Code, order.CustomerId, order.PromisedAt, order.Status,
-            order.Version, lines, lines.Sum(l => l.AmountVnd), history,
+            order.Version, lines, order.TotalVnd, history,
             order.CancellationReason, order.CancelledAt, order.CancelledBy,
             order.Payment is { } payment ? new OrderPaymentResponse(payment.Method, payment.AmountVnd) : null);
     }

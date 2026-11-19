@@ -380,7 +380,16 @@ public class OrderTests
         using var manager = host.CreateClient();
         await SignIn(manager, "manager", password);
         using var staff = await SignInStaff(host, manager);
-        var (received, _) = await ReceiveFiveKilograms(manager);
+        var customerId = await CreateCustomer(manager);
+        var kg = await CreateService(manager, "Giặt sấy", "kg", 10002);
+        var piece = await CreateService(manager, "Giặt chăn", "piece", 30000);
+        using var created = await manager.PostAsJsonAsync(Orders, new
+        {
+            customerId,
+            lines = new[] { new { serviceId = kg, quantity = 0.25m }, new { serviceId = piece, quantity = 2m } }
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var received = (await created.Content.ReadFromJsonAsync<Receipt>())!;
         var path = $"{Orders}/{received.Code}";
         var ready = await MarkOrderReady(manager, received);
         Assert.Null(ready.Payment);
@@ -391,7 +400,8 @@ public class OrderTests
         var returned = (await manager.GetFromJsonAsync<Receipt>(path))!;
         Assert.Equal("Returned", returned.Status);
         Assert.NotEqual(ready.Version, returned.Version);
-        Assert.Equal(new Payment(paymentMethod, 50010m), returned.Payment);
+        Assert.Equal(62501m, returned.TotalVnd);
+        Assert.Equal(new Payment(paymentMethod, 62501m), returned.Payment);
         Assert.Equal(ready.History, returned.History[..^1]);
         var handedOver = returned.History[^1];
         Assert.Equal("Returned", handedOver.Status);
