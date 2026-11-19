@@ -15,7 +15,7 @@ public class LaundryOrder
     public string Code { get; private set; } = null!;
     public int CustomerId { get; init; }
     public DateTimeOffset? PromisedAt { get; init; }
-    public string Status { get; set; } = Received;
+    public string Status { get; private set; } = Received;
     public string? CancellationReason { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
     public int? CancelledBy { get; set; }
@@ -32,7 +32,11 @@ public class LaundryOrder
         ChangeStatus(Cancelled, accountId, now);
     }
 
-    public void ChangeStatus(string status, int accountId, DateTimeOffset now)
+    public void StartProcessing(int accountId) => ChangeStatus(Processing, accountId, DateTimeOffset.UtcNow);
+
+    public void MarkReady(int accountId) => ChangeStatus(Ready, accountId, DateTimeOffset.UtcNow);
+
+    private void ChangeStatus(string status, int accountId, DateTimeOffset now)
     {
         Status = status;
         History.Add(new OrderStatusEvent { Status = status, OccurredAt = now, AccountId = accountId });

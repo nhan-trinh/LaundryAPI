@@ -91,25 +91,22 @@ public class OrderService(OrderRepository orders)
 
     public Task<OrderChangeResult> CancelAsync(string code, CancelOrderRequest request, int accountId,
         CancellationToken ct) =>
-        orders.ChangeAsync(code, request.Version, LaundryOrder.Received, order =>
-        {
-            order.Cancel(request.CancellationReason.Trim(), accountId, DateTimeOffset.UtcNow);
-            return true;
-        }, ct);
+        ChangeStatusAsync(code, request.Version, LaundryOrder.Received,
+            order => order.Cancel(request.CancellationReason.Trim(), accountId, DateTimeOffset.UtcNow), ct);
 
     public Task<OrderChangeResult> StartProcessingAsync(string code, OrderProgressRequest request, int accountId,
         CancellationToken ct) =>
-        AdvanceAsync(code, request.Version, LaundryOrder.Received, LaundryOrder.Processing, accountId, ct);
+        ChangeStatusAsync(code, request.Version, LaundryOrder.Received, order => order.StartProcessing(accountId), ct);
 
     public Task<OrderChangeResult> MarkReadyAsync(string code, OrderProgressRequest request, int accountId,
         CancellationToken ct) =>
-        AdvanceAsync(code, request.Version, LaundryOrder.Processing, LaundryOrder.Ready, accountId, ct);
+        ChangeStatusAsync(code, request.Version, LaundryOrder.Processing, order => order.MarkReady(accountId), ct);
 
-    private Task<OrderChangeResult> AdvanceAsync(string code, byte[] version, string requiredStatus,
-        string nextStatus, int accountId, CancellationToken ct) =>
+    private Task<OrderChangeResult> ChangeStatusAsync(string code, byte[] version, string requiredStatus,
+        Action<LaundryOrder> changeStatus, CancellationToken ct) =>
         orders.ChangeAsync(code, version, requiredStatus, order =>
         {
-            order.ChangeStatus(nextStatus, accountId, DateTimeOffset.UtcNow);
+            changeStatus(order);
             return true;
         }, ct);
 
