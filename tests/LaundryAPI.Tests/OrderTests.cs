@@ -11,9 +11,9 @@ public class OrderTests
     private const string Orders = "/api/v1/orders";
     private sealed record Line(int ServiceId, string ServiceName, string Unit, long UnitPriceVnd,
         decimal Quantity, string? Note, decimal AmountVnd);
-    private sealed record ReceivedEvent(string Status, int AccountId, string Username, DateTimeOffset OccurredAt);
+    private sealed record OrderHistoryEvent(string Status, int AccountId, string Username, DateTimeOffset OccurredAt);
     private sealed record Receipt(string Code, int CustomerId, DateTimeOffset? PromisedAt, string Status,
-        string Version, Line[] Lines, decimal TotalVnd, ReceivedEvent[] History,
+        string Version, Line[] Lines, decimal TotalVnd, OrderHistoryEvent[] History,
         string? CancellationReason, DateTimeOffset? CancelledAt, int? CancelledBy);
 
     [Fact]

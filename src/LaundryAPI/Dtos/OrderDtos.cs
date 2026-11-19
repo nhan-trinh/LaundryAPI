@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using LaundryAPI.Models;
+using LaundryAPI.Validations;
 
 namespace LaundryAPI.Dtos;
 
@@ -8,11 +9,11 @@ public record CreateOrderRequest([Range(1, int.MaxValue)] int CustomerId, [Requi
     DateTimeOffset? PromisedAt);
 public record CreateOrderLine(int ServiceId,
     [property: JsonConverter(typeof(OrderQuantityJsonConverter))]
-    [Range(typeof(decimal), "0.01", "99999999999999999999999999.99", ParseLimitsInInvariantCulture = true)]
+    [OrderQuantityRange]
     decimal Quantity, string? Note);
 public record ChangeOrderQuantityRequest([Required, MinLength(8), MaxLength(8)] byte[] Version,
     [property: JsonConverter(typeof(OrderQuantityJsonConverter))]
-    [Range(typeof(decimal), "0.01", "99999999999999999999999999.99", ParseLimitsInInvariantCulture = true)]
+    [OrderQuantityRange]
     decimal Quantity);
 
 public record CancelOrderRequest([Required, MinLength(8), MaxLength(8)] byte[] Version,
