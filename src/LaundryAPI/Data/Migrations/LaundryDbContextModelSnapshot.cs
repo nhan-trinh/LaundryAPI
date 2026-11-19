@@ -78,6 +78,34 @@ namespace LaundryAPI.Data.Migrations
 
                     b.ToTable("Customers");
                 });
+
+            modelBuilder.Entity("LaundryAPI.Models.ServiceOffering", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
+                    b.Property<long>("UnitPriceVnd")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceOfferings");
+                });
 #pragma warning restore 612, 618
         }
     }

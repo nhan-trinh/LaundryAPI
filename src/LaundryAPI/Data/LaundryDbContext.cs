@@ -7,4 +7,5 @@ public class LaundryDbContext(DbContextOptions<LaundryDbContext> options) : DbCo
 {
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<ServiceOffering> ServiceOfferings => Set<ServiceOffering>();
 }

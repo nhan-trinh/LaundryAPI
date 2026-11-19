@@ -29,6 +29,8 @@ services.AddScoped<ILoginService, LoginService>();
 services.AddScoped<IStaffAccountService, StaffAccountService>();
 services.AddScoped<ICustomerRepository, CustomerRepository>();
 services.AddScoped<ICustomerService, CustomerService>();
+services.AddScoped<IServiceCatalogRepository, ServiceCatalogRepository>();
+services.AddScoped<IServiceCatalog, ServiceCatalog>();
 services.AddScoped<AccountTokenEvents>();
 services.AddSingleton<JwtTokens>();
 services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
