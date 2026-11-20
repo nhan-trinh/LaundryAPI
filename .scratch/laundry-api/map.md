@@ -49,6 +49,8 @@ Các yêu cầu kỹ thuật ban đầu nằm trong bản đặc tả.
 
 - [32 — Tìm phiếu tại quầy](issues/32-tim-phieu-tai-quay.md) — Staff và Manager tìm phiếu theo mã hoặc số điện thoại, lọc theo trạng thái và ngày nhận tại Việt Nam, rồi mở chi tiết cả phiếu đã hủy. Kết quả được phân trang theo thời điểm nhận từ mới đến cũ.
 
+- [33 — Nghiệm thu v1 để chấm đồ án](issues/33-nghiem-thu-v1.md) — Chốt hai tiêu chí: tất cả kiểm thử đạt trên SQL Server và một người chưa quen repo tự chạy trọn lượt giao dịch qua Swagger theo README.
+
 ## Fog
 
 Đã trả lời các câu hỏi 01–23. Chủ dự án đã duyệt đặc tả v1 và cách chia ticket triển khai.
@@ -64,3 +66,4 @@ Các yêu cầu kỹ thuật ban đầu nằm trong bản đặc tả.
 - [30 — Bắt đầu xử lý và đánh dấu sẵn sàng trả](issues/30-xu-ly-phieu.md)
 - [31 — Thu tiền và trả toàn bộ đồ](issues/31-thu-tien-tra-do.md)
 - [32 — Tìm phiếu tại quầy](issues/32-tim-phieu-tai-quay.md)
+- [33 — Nghiệm thu v1 để chấm đồ án](issues/33-nghiem-thu-v1.md)

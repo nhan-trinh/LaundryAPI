@@ -2,3 +2,17 @@
 **/obj/
 .vs/
 TestResults/
+*.user
+*.suo
+src/LaundryAPI/Properties/launchSettings.json
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.Local.json
+*.pfx
+*.p12
+*.key
+*.mdf
+*.ldf
+*.bak
