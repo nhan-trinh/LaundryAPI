@@ -509,9 +509,9 @@ public class OrderTests
         var customerId = await CreateCustomer(staff);
         var otherCustomer = await CreateId(staff, "/api/v1/customers", new { name = "An", phoneNumber = "0987654321" });
         var serviceId = await CreateService(manager, "Giặt chăn", "piece", 30000);
-        var first = await ReceiveOrder(staff, customerId, serviceId);
+        var (first, _) = await ReceiveOrder(staff, customerId, serviceId);
         await ReceiveOrder(staff, otherCustomer, serviceId);
-        var last = await ReceiveOrder(staff, customerId, serviceId);
+        var (last, _) = await ReceiveOrder(staff, customerId, serviceId);
         using var cancel = await staff.PostAsJsonAsync($"{Orders}/{first.Code}/cancel",
             new { first.Version, cancellationReason = "Khách đổi ý" });
         Assert.Equal(HttpStatusCode.NoContent, cancel.StatusCode);
@@ -544,7 +544,7 @@ public class OrderTests
 
         async Task<Receipt> ReceiveAt(DateTimeOffset time)
         {
-            var receipt = await ReceiveOrder(manager, customer, service);
+            var (receipt, _) = await ReceiveOrder(manager, customer, service);
             await database.SetReceivedAtAsync(receipt.Code, time);
             return receipt;
         }
@@ -574,14 +574,6 @@ public class OrderTests
         }
     }
 
-    private static async Task<Receipt> ReceiveOrder(HttpClient client, int customerId, int serviceId)
-    {
-        using var response = await client.PostAsJsonAsync(Orders,
-            new { customerId, lines = new[] { new { serviceId, quantity = 1 } } });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<Receipt>())!;
-    }
-
     private static async Task<Receipt> MarkOrderReady(HttpClient client, Receipt received)
     {
         var path = $"{Orders}/{received.Code}";
@@ -597,8 +589,14 @@ public class OrderTests
     {
         var serviceId = await CreateService(manager, "Giặt sấy", "kg", 10002);
         var customerId = await CreateCustomer(manager);
-        using var response = await manager.PostAsJsonAsync(Orders,
-            new { customerId, lines = new[] { new { serviceId, quantity = 5 } } });
+        return await ReceiveOrder(manager, customerId, serviceId, quantity: 5);
+    }
+
+    private static async Task<(Receipt Receipt, int LineId)> ReceiveOrder(HttpClient client, int customerId,
+        int serviceId, decimal quantity = 1)
+    {
+        using var response = await client.PostAsJsonAsync(Orders,
+            new { customerId, lines = new[] { new { serviceId, quantity } } });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         return (body.Deserialize<Receipt>(JsonSerializerOptions.Web)!, body.GetProperty("lines")[0].GetProperty("id").GetInt32());

@@ -13,7 +13,7 @@ Nhân viên tìm lại phiếu khi khách quay lại và lọc danh sách để 
 - [x] Kết quả được phân trang và mặc định xếp theo thời điểm nhận từ mới đến cũ. Trên cùng tập dữ liệu, các trang kế tiếp không lặp hoặc bỏ sót phiếu.
 - [x] Từ kết quả, mở chi tiết để đối chiếu mã, khách, các dòng và trạng thái. Phiếu đã hủy vẫn tra cứu được khi dữ liệu có trạng thái này.
 
-Kiểm chứng qua HTTP dưới `/api/v1` với SQL Server thử nghiệm đã áp dụng migrations. Có thể thử thao tác trong Swagger UI. [Đặc tả v1](../spec.md)
+Kiểm chứng qua HTTP dưới `/api/v1` với SQL Server thử nghiệm đã áp dụng migrations. Có thể thử thao tác trong Swagger UI. Phạm vi tra cứu của đặc tả v1 được ghi tại quyết định 21. [Biên bản quyết định](../map.md#decisions-so-far)
 
 ## Answer
 
