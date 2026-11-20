@@ -5,6 +5,20 @@ using LaundryAPI.Validations;
 
 namespace LaundryAPI.Dtos;
 
+public record OrderSearchRequest
+{
+    public string? Code { get; init; }
+    [VietnamesePhone] public string? PhoneNumber { get; init; }
+    [AllowedValues(null, LaundryOrder.Received, LaundryOrder.Processing, LaundryOrder.Ready,
+        LaundryOrder.Returned, LaundryOrder.Cancelled)]
+    public string? Status { get; init; }
+    public DateOnly? ReceivedDate { get; init; }
+    [Range(1, int.MaxValue)] public int Page { get; init; } = 1;
+    [Range(1, 100)] public int PageSize { get; init; } = 20;
+}
+
+public record OrderSummaryResponse(string Code, int CustomerId, string Status, DateTimeOffset ReceivedAt);
+
 public record CreateOrderRequest([Range(1, int.MaxValue)] int CustomerId, [Required, MinLength(1)] List<CreateOrderLine> Lines,
     DateTimeOffset? PromisedAt);
 public record CreateOrderLine(int ServiceId,

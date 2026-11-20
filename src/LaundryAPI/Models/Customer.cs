@@ -10,4 +10,7 @@ public class Customer
     public required string Name { get; set; }
     [MaxLength(13)]
     public required string PhoneNumber { get; set; }
+
+    public static string NormalizePhoneNumber(string phoneNumber) =>
+        phoneNumber.StartsWith('0') ? "+84" + phoneNumber[1..] : phoneNumber;
 }

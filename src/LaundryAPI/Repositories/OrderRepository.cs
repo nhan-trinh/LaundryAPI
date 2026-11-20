@@ -1,5 +1,6 @@
 using System.Data;
 using LaundryAPI.Data;
+using LaundryAPI.Dtos;
 using LaundryAPI.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,6 +8,36 @@ namespace LaundryAPI.Repositories;
 
 public class OrderRepository(LaundryDbContext db)
 {
+    public Task<List<OrderSummaryResponse>> SearchAsync(OrderSearchRequest request, CancellationToken ct)
+    {
+        var offset = (long)(request.Page - 1) * request.PageSize;
+        if (offset > int.MaxValue)
+            return Task.FromResult(new List<OrderSummaryResponse>());
+
+        var orders = db.Orders.AsNoTracking();
+        if (request.Code is not null)
+            orders = orders.Where(o => o.Code == request.Code);
+        if (request.PhoneNumber is not null)
+            orders = orders.Where(o => db.Customers.Any(c => c.Id == o.CustomerId && c.PhoneNumber == request.PhoneNumber));
+        if (request.Status is not null)
+            orders = orders.Where(o => o.Status == request.Status);
+
+        var receipts = from order in orders
+                       from receipt in order.History
+                       where receipt.Status == LaundryOrder.Received
+                       select new { Order = order, ReceivedAt = receipt.OccurredAt };
+        if (request.ReceivedDate is { } date)
+        {
+            var localDate = date.ToDateTime(TimeOnly.MinValue);
+            receipts = receipts.Where(r => EF.Functions.AtTimeZone(r.ReceivedAt, "SE Asia Standard Time").Date == localDate);
+        }
+
+        return receipts.OrderByDescending(r => r.ReceivedAt).ThenByDescending(r => r.Order.Id)
+            .Skip((int)offset).Take(request.PageSize)
+            .Select(r => new OrderSummaryResponse(r.Order.Code, r.Order.CustomerId, r.Order.Status, r.ReceivedAt))
+            .ToListAsync(ct);
+    }
+
     // Keep the quoted services active and at their observed prices until the receipt is saved.
     public async Task<T> InReceiptTransactionAsync<T>(Func<Task<T>> receive, CancellationToken ct)
     {

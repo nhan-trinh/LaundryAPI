@@ -93,6 +93,12 @@ public class OrdersController(OrderService orders) : ControllerBase
         _ => throw new ArgumentOutOfRangeException(nameof(result))
     };
 
+    [HttpGet]
+    [ProducesResponseType<IReadOnlyList<OrderSummaryResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Search([FromQuery] OrderSearchRequest request, CancellationToken ct) =>
+        Ok(await orders.SearchAsync(request, ct));
+
     [HttpGet("{code}")]
     [ProducesResponseType<OrderResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

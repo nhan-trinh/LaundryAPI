@@ -47,6 +47,8 @@ Các yêu cầu kỹ thuật ban đầu nằm trong bản đặc tả.
 
 - [31 — Thu tiền và trả toàn bộ đồ](issues/31-thu-tien-tra-do.md) — Khi bàn giao phiếu sẵn sàng trả, Staff hoặc Manager ghi một khoản thu đủ bằng tiền mặt hoặc chuyển khoản và chuyển phiếu sang Đã trả trong cùng giao dịch.
 
+- [32 — Tìm phiếu tại quầy](issues/32-tim-phieu-tai-quay.md) — Staff và Manager tìm phiếu theo mã hoặc số điện thoại, lọc theo trạng thái và ngày nhận tại Việt Nam, rồi mở chi tiết cả phiếu đã hủy. Kết quả được phân trang theo thời điểm nhận từ mới đến cũ.
+
 ## Fog
 
 Đã trả lời các câu hỏi 01–23. Chủ dự án đã duyệt đặc tả v1 và cách chia ticket triển khai.

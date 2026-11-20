@@ -36,6 +36,21 @@ internal sealed class SqlTestDatabase : IAsyncDisposable
         await command.ExecuteNonQueryAsync();
     }
 
+    public async Task SetReceivedAtAsync(string code, DateTimeOffset receivedAt)
+    {
+        await using var sql = new SqlConnection(connection.ConnectionString);
+        await sql.OpenAsync();
+        await using var command = sql.CreateCommand();
+        command.CommandText = """
+            UPDATE e SET OccurredAt = @receivedAt
+            FROM OrderStatusEvent e JOIN Orders o ON o.Id = e.LaundryOrderId
+            WHERE o.Code = @code AND e.Status = 'Received'
+            """;
+        command.Parameters.AddWithValue("@code", code);
+        command.Parameters.AddWithValue("@receivedAt", receivedAt);
+        await command.ExecuteNonQueryAsync();
+    }
+
     public async ValueTask DisposeAsync()
     {
         connection.InitialCatalog = "master";

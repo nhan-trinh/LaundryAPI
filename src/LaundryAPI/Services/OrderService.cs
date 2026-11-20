@@ -7,6 +7,12 @@ namespace LaundryAPI.Services;
 
 public class OrderService(OrderRepository orders)
 {
+    public Task<List<OrderSummaryResponse>> SearchAsync(OrderSearchRequest request, CancellationToken ct) =>
+        orders.SearchAsync(request with
+        {
+            PhoneNumber = request.PhoneNumber is null ? null : Customer.NormalizePhoneNumber(request.PhoneNumber)
+        }, ct);
+
     public Task<OrderResponse> CreateAsync(CreateOrderRequest request, int accountId, CancellationToken ct) =>
         orders.InReceiptTransactionAsync(() => ReceiveAsync(request, accountId, ct), ct);
 

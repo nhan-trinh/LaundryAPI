@@ -495,6 +495,93 @@ public class OrderTests
         Assert.Equal(ready.History, saved.History);
     }
 
+    private sealed record OrderSummary(string Code, int CustomerId, string Status, DateTimeOffset ReceivedAt);
+
+    [Fact]
+    public async Task Staff_finds_a_customers_receipts_by_phone_or_code_and_opens_cancelled_details()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        using var staff = await SignInStaff(host, manager);
+        var customerId = await CreateCustomer(staff);
+        var otherCustomer = await CreateId(staff, "/api/v1/customers", new { name = "An", phoneNumber = "0987654321" });
+        var serviceId = await CreateService(manager, "Giặt chăn", "piece", 30000);
+        var first = await ReceiveOrder(staff, customerId, serviceId);
+        await ReceiveOrder(staff, otherCustomer, serviceId);
+        var last = await ReceiveOrder(staff, customerId, serviceId);
+        using var cancel = await staff.PostAsJsonAsync($"{Orders}/{first.Code}/cancel",
+            new { first.Version, cancellationReason = "Khách đổi ý" });
+        Assert.Equal(HttpStatusCode.NoContent, cancel.StatusCode);
+
+        var cancelled = new OrderSummary(first.Code, customerId, "Cancelled", first.History[0].OccurredAt);
+        var received = new OrderSummary(last.Code, customerId, "Received", last.History[0].OccurredAt);
+        foreach (var phone in new[] { "0912345678", "%2B84912345678" })
+            Assert.Equal([received, cancelled], (await staff.GetFromJsonAsync<OrderSummary[]>($"{Orders}?phoneNumber={phone}"))!);
+
+        var match = Assert.Single((await manager.GetFromJsonAsync<OrderSummary[]>($"{Orders}?code={first.Code}"))!);
+        Assert.Equal(cancelled, match);
+        var detail = (await staff.GetFromJsonAsync<Receipt>($"{Orders}/{match.Code}"))!;
+        Assert.Equal(match.Code, detail.Code);
+        Assert.Equal(match.CustomerId, detail.CustomerId);
+        Assert.Equal(match.Status, detail.Status);
+        Assert.Equal(first.Lines, detail.Lines);
+    }
+
+    [Fact]
+    public async Task Counter_filters_by_receipt_day_and_current_status_and_pages_across_tied_receipt_times()
+    {
+        await using var database = new SqlTestDatabase();
+        var password = RandomSecret();
+        using var host = database.Start(RandomSecret(), password);
+        using var manager = host.CreateClient();
+        await SignIn(manager, "manager", password);
+        var customer = await CreateCustomer(manager);
+        var service = await CreateService(manager, "Giặt sấy", "kg", 10002);
+        var midnight = new DateTimeOffset(2026, 1, 12, 17, 0, 0, TimeSpan.Zero); // Jan 13 in Vietnam
+
+        async Task<Receipt> ReceiveAt(DateTimeOffset time)
+        {
+            var receipt = await ReceiveOrder(manager, customer, service);
+            await database.SetReceivedAtAsync(receipt.Code, time);
+            return receipt;
+        }
+
+        var first = await ReceiveAt(midnight);
+        var second = await ReceiveAt(midnight);
+        var before = await ReceiveAt(midnight.AddTicks(-1));
+        var end = await ReceiveAt(midnight.AddDays(1).AddTicks(-1));
+        var after = await ReceiveAt(midnight.AddDays(1));
+        using var start = await manager.PostAsJsonAsync($"{Orders}/{first.Code}/start-processing", new { first.Version });
+        Assert.Equal(HttpStatusCode.NoContent, start.StatusCode);
+
+        async Task<string[]> Search(string query) =>
+            (await manager.GetFromJsonAsync<OrderSummary[]>($"{Orders}?{query}"))!.Select(row => row.Code).ToArray();
+
+        Assert.Equal([end.Code, second.Code, first.Code], await Search("receivedDate=2026-01-13"));
+        Assert.Equal([after.Code, end.Code, second.Code, before.Code], await Search("status=Received"));
+        Assert.Equal([end.Code, second.Code], await Search("receivedDate=2026-01-13&status=Received"));
+        Assert.Equal([end.Code, second.Code], await Search("receivedDate=2026-01-13&pageSize=2"));
+        Assert.Equal([first.Code], await Search("receivedDate=2026-01-13&pageSize=2&page=2"));
+        Assert.Empty(await Search("receivedDate=2026-01-13&pageSize=2&page=3"));
+        Assert.Empty(await Search("page=2147483647&pageSize=100"));
+        foreach (var invalid in new[] { "page=0", "pageSize=101", "status=unknown", "receivedDate=tomorrow", "phoneNumber=123" })
+        {
+            using var response = await manager.GetAsync($"{Orders}?{invalid}");
+            await AssertProblem(response, HttpStatusCode.BadRequest);
+        }
+    }
+
+    private static async Task<Receipt> ReceiveOrder(HttpClient client, int customerId, int serviceId)
+    {
+        using var response = await client.PostAsJsonAsync(Orders,
+            new { customerId, lines = new[] { new { serviceId, quantity = 1 } } });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<Receipt>())!;
+    }
+
     private static async Task<Receipt> MarkOrderReady(HttpClient client, Receipt received)
     {
         var path = $"{Orders}/{received.Code}";
